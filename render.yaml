@@ -1,0 +1,28 @@
+# Déploiement gratuit sur Render (https://render.com) : "New → Blueprint", pointe ce dépôt.
+# Un seul conteneur = un seul cache partagé par tous les visiteurs, c'est l'idéal.
+services:
+  - type: web
+    name: flightmap
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run setup-data
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"   # node:sqlite intégré (persistance sans compilation native)
+      # Colle tes clés dans le dashboard Render (jamais dans ce fichier)
+      - key: AVIATIONSTACK_KEY
+        sync: false
+      - key: AIRLABS_KEY
+        sync: false
+      - key: AERODATABOX_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: PUBLIC_URL
+        sync: false
+      - key: USER_AGENT
+        value: "flightmap/2.0 (render)"

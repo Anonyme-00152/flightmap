@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0f14" />
+  <title>FlightMap — rejouer une journée</title>
+  <link rel="icon" href="icons/icon-192.png" type="image/png" />
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="style.css?v=8" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" style="text-decoration:none;color:inherit"><span class="brand-icon">✈</span><span class="brand-name">FlightMap</span></a>
+    <span style="color:var(--muted)">Rejouer une journée</span>
+    <div class="tools" style="margin-left:auto"><a class="tool tool--link" href="./">← Carte</a></div>
+  </header>
+  <main class="page"><div class="page-inner" style="max-width:none">
+    <div class="replay-controls">
+      <input id="day" type="date" class="f-input" style="width:auto;text-transform:none" />
+      <button id="play" class="sched-btn" type="button" style="width:auto;margin:0">▶ Lire</button>
+      <select id="speed" class="f-input" style="width:auto"><option value="60">×60</option><option value="180" selected>×180</option><option value="600">×600</option><option value="1800">×1800</option></select>
+      <input id="slider" type="range" min="0" max="86399" value="0" />
+      <span id="clock" class="mono" style="min-width:80px">00:00</span>
+      <span id="info" class="sched-note"></span>
+    </div>
+    <div id="replay-map"></div>
+  </div></main>
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script type="module">
+    import { loadPrefs, state } from './js/state.js';
+    loadPrefs(); document.documentElement.dataset.theme = state.theme;
+    const map = L.map('replay-map', { zoomAnimation: false }).setView([48.8, 2.3], 6);
+    const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 12 }).addTo(map);
+    map.whenReady(() => tiles.getContainer()?.classList.toggle('tile-dark', state.theme === 'dark'));
+
+    // calque canvas : toutes les positions à l'instant t + traînée
+    const canvas = L.DomUtil.create('canvas', 'plane-canvas');
+    map.getPanes().overlayPane.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    function resize() { const s = map.getSize(); const dpr = devicePixelRatio || 1; canvas.width = s.x * dpr; canvas.height = s.y * dpr; canvas.style.width = s.x + 'px'; canvas.style.height = s.y + 'px'; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); L.DomUtil.setPosition(canvas, map.containerPointToLayerPoint([0, 0])); }
+    map.on('move resize zoomend', resize); resize();
+
+    let legs = [], dayStart = 0, t = 0, playing = false, last = 0;
+    const dayInput = document.getElementById('day'), slider = document.getElementById('slider'), clock = document.getElementById('clock'), info = document.getElementById('info');
+    dayInput.value = new URLSearchParams(location.search).get('day') || new Date().toISOString().slice(0, 10);
+
+    async function load() {
+      const res = await fetch(`/api/replay?day=${dayInput.value}`);
+      const d = await res.json();
+      legs = d.legs.filter((l) => l.points?.length > 1).map((l) => ({ ...l, i: 0 }));
+      dayStart = new Date(`${d.day}T00:00:00Z`).getTime();
+      info.textContent = `${legs.length} vols archivés ce jour-là${legs.length ? '' : ' — l\'archive se remplit avec les avions consultés sur la carte.'}`;
+      // premier instant avec du trafic
+      const first = Math.min(...legs.map((l) => l.points[0][0]), dayStart + 86_399_000);
+      t = Math.max(dayStart, first);
+      slider.value = Math.round((t - dayStart) / 1000);
+      if (legs.length) map.fitBounds(L.latLngBounds(legs.slice(0, 200).flatMap((l) => [l.points[0], l.points[l.points.length - 1]].map((p) => [p[1], p[2]]))).pad(0.1), { maxZoom: 7 });
+      draw();
+    }
+
+    function posAt(leg, time) {
+      const pts = leg.points;
+      if (time < pts[0][0] || time > pts[pts.length - 1][0]) return null;
+      let i = leg.i;
+      if (i >= pts.length - 1 || pts[i][0] > time) i = 0;
+      while (i < pts.length - 2 && pts[i + 1][0] <= time) i++;
+      leg.i = i;
+      const a = pts[i], b = pts[i + 1];
+      const f = Math.max(0, Math.min(1, (time - a[0]) / Math.max(1, b[0] - a[0])));
+      return { lat: a[1] + (b[1] - a[1]) * f, lon: a[2] + (b[2] - a[2]) * f, alt: a[3], track: a[5], i };
+    }
+
+    function draw() {
+      const s = map.getSize();
+      ctx.clearRect(0, 0, s.x, s.y);
+      clock.textContent = new Date(t).toISOString().slice(11, 16) + ' UTC';
+      let n = 0;
+      for (const leg of legs) {
+        const p = posAt(leg, t);
+        if (!p) continue;
+        n++;
+        // traînée : 20 derniers points
+        const from = Math.max(0, p.i - 20);
+        ctx.beginPath();
+        for (let k = from; k <= p.i; k++) { const q = map.latLngToContainerPoint([leg.points[k][1], leg.points[k][2]]); k === from ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y); }
+        const cur = map.latLngToContainerPoint([p.lat, p.lon]);
+        ctx.lineTo(cur.x, cur.y);
+        ctx.strokeStyle = 'rgba(63,182,255,.45)'; ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.save(); ctx.translate(cur.x, cur.y); ctx.rotate(((p.track ?? 0) * Math.PI) / 180);
+        ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(4, 5); ctx.lineTo(0, 3); ctx.lineTo(-4, 5); ctx.closePath();
+        ctx.fillStyle = p.alt === 0 ? '#5b6b7f' : p.alt < 10000 ? '#35c18a' : p.alt < 30000 ? '#e8c33d' : '#f2f5f8'; ctx.fill();
+        ctx.restore();
+      }
+      info.textContent = `${n} avions en l'air · ${legs.length} vols archivés`;
+    }
+
+    function frame(now) {
+      if (playing) {
+        const dt = (now - last) * Number(document.getElementById('speed').value);
+        last = now;
+        t += dt;
+        if (t > dayStart + 86_400_000) { playing = false; document.getElementById('play').textContent = '▶ Lire'; }
+        slider.value = Math.round((t - dayStart) / 1000);
+        draw();
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    document.getElementById('play').addEventListener('click', (e) => { playing = !playing; last = performance.now(); e.target.textContent = playing ? '❚❚ Pause' : '▶ Lire'; });
+    slider.addEventListener('input', () => { t = dayStart + Number(slider.value) * 1000; for (const l of legs) l.i = 0; draw(); });
+    dayInput.addEventListener('change', load);
+    map.on('move zoom', draw);
+    load();
+  </script>
+</body>
+</html>

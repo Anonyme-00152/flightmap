@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FlightMap — widget</title>
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="style.css?v=8" />
+  <style>
+    /* widget : carte seule, sans barre ni panneaux */
+    :root { --topbar-h: 0px; }
+    #map { inset: 0; }
+    .embed-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 800; display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: var(--topbar-bg); border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; }
+    .embed-bar a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .embed-bar .cnt { margin-left: auto; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="embed-bar">
+    <span>✈ <a id="open" href="/" target="_blank" rel="noopener">Ouvrir dans FlightMap</a></span>
+    <span id="title"></span>
+    <span class="cnt"><b id="stat-count">—</b> avions · <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL) · © OSM</span>
+  </div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script type="module">
+    /**
+     * Widget embarquable : <iframe src="https://ton-site/embed.html?airport=CDG" width="600" height="400"></iframe>
+     * Paramètres : airport=CDG | lat&lon&z | hex=392aec (suit l'avion) | theme=light|dark
+     */
+    import { loadPrefs, state, CONFIG } from './js/state.js';
+    const q = new URLSearchParams(location.search);
+    loadPrefs();
+    if (q.get('theme')) state.theme = q.get('theme') === 'light' ? 'light' : 'dark';
+    const { map } = await import('./js/map.js');
+    await import('./js/render.js');
+    const data = await import('./js/data.js');
+    const open = document.getElementById('open');
+
+    if (q.get('airport')) {
+      const res = await fetch(`/api/airport/${encodeURIComponent(q.get('airport'))}`).catch(() => null);
+      if (res?.ok) {
+        const b = await res.json();
+        map.setView([b.airport.lat, b.airport.lon], Number.parseInt(q.get('z') || '10', 10));
+        document.getElementById('title').textContent = `${b.airport.iata || b.airport.icao} · ${b.airport.name}`;
+        open.href = `/?airport=${encodeURIComponent(q.get('airport'))}`;
+        for (const rw of b.runways || []) L.polyline(rw.ends.map((e) => [e.lat, e.lon]), { color: '#e6edf3', weight: 3, opacity: .8 }).addTo(map);
+      }
+    } else if (q.get('lat') && q.get('lon')) {
+      map.setView([Number(q.get('lat')), Number(q.get('lon'))], Number.parseInt(q.get('z') || '8', 10));
+      open.href = `/?lat=${q.get('lat')}&lon=${q.get('lon')}&z=${q.get('z') || 8}`;
+    }
+    data.start();
+    if (q.get('hex')) {
+      const hex = q.get('hex').toLowerCase();
+      open.href = `/?hex=${hex}`;
+      state.selectedHex = hex;
+      data.setFollow(hex);
+    }
+    // désactive le zoom molette (une page qui scrolle ne doit pas zoomer la carte par erreur)
+    map.scrollWheelZoom.disable();
+  </script>
+</body>
+</html>

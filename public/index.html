@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f14" />
+  <meta name="description" content="Suivi des vols en direct : carte, trajets, horaires, trace réelle, aéroports. 100 % gratuit." />
+  <title>FlightMap — suivi des vols en direct</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="style.css?v=9" />
+</head>
+<body>
+  <a class="skip-link" href="#panel">Aller au contenu</a>
+
+  <header class="topbar" role="banner">
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">✈</span>
+      <span class="brand-name">FlightMap</span>
+    </div>
+
+    <div class="search" role="search">
+      <label for="search" class="sr-only">Recherche d'un vol</label>
+      <input id="search" type="search" placeholder="Callsign, immat. ou hex — monde entier (ex : AFR123, F-GKXM)" data-i18n-ph="Callsign, immat. ou hex — monde entier (ex : AFR123, F-GKXM)" autocomplete="off" spellcheck="false" />
+    </div>
+
+    <div class="tools" role="toolbar" aria-label="Outils">
+      <button id="filters-btn" class="tool" type="button" title="Filtres et alertes" data-i18n-title="Filtres et alertes" aria-controls="filters"><span aria-hidden="true">⚲</span> <span data-i18n="Filtres">Filtres</span> <span id="filters-count" class="tool-count"></span></button>
+      <button id="mezone-btn" class="tool" type="button" title="Ma zone" data-i18n-title="Ma zone" aria-controls="mezone-panel"><span aria-hidden="true">📍</span></button>
+      <button id="account-btn" class="tool" type="button" title="Mes favoris et alertes" data-i18n-title="Mes favoris et alertes" aria-controls="account-panel"><span aria-hidden="true">★</span></button>
+      <a class="tool tool--link" href="stats.html" title="Statistiques" data-i18n-title="Statistiques"><span aria-hidden="true">📊</span><span class="sr-only">Statistiques</span></a>
+      <button id="lang-btn" class="tool" type="button" title="Langue">EN</button>
+      <button id="theme-btn" class="tool" type="button" title="Mode clair" data-i18n-title="Mode clair">☀</button>
+      <button id="fullscreen-btn" class="tool" type="button" title="Plein écran" data-i18n-title="Plein écran">⤢</button>
+      <button id="install-btn" class="tool tool--accent" type="button" data-i18n="Installer" hidden>Installer</button>
+    </div>
+
+    <div class="stats" aria-live="off">
+      <span class="stat"><b id="stat-count">—</b> <span data-i18n="avions">avions</span></span>
+      <span class="stat-sep">·</span>
+      <span class="stat" id="stat-source">connexion…</span>
+      <span class="stat-sep">·</span>
+      <span class="stat" id="stat-age">—</span>
+    </div>
+  </header>
+
+  <div id="map" role="application" aria-label="Carte des avions en vol"></div>
+
+  <!-- Liste hors écran pour les lecteurs d'écran (mise à jour toutes les 5 s) -->
+  <nav class="sr-only" aria-label="Avions visibles">
+    <p id="a11y-count" aria-live="polite"></p>
+    <ul id="a11y-list"></ul>
+  </nav>
+
+  <!-- Filtres & alertes -->
+  <aside id="filters" class="filters" hidden role="dialog" aria-label="Filtres et alertes">
+    <button id="filters-close" class="panel-close" aria-label="Fermer" data-i18n-title="Fermer">×</button>
+    <div class="section-title" data-i18n="Afficher seulement">Afficher seulement</div>
+    <label class="check"><input id="f-military" type="checkbox" /> <span data-i18n="Militaires">Militaires</span></label>
+    <label class="check"><input id="f-emergency" type="checkbox" /> <span data-i18n="Urgences (7500 / 7600 / 7700)">Urgences (7500 / 7600 / 7700)</span></label>
+    <label class="check"><input id="f-notable" type="checkbox" /> <span data-i18n="Appareils remarquables">Appareils remarquables</span></label>
+    <label class="check"><input id="f-ground" type="checkbox" /> <span data-i18n="Masquer les avions au sol">Masquer les avions au sol</span></label>
+
+    <div class="section-title"><span data-i18n="Altitude">Altitude</span> · <span id="f-alt-label"></span></div>
+    <div class="range-row">
+      <label class="sr-only" for="f-altmin">Altitude minimale</label>
+      <input id="f-altmin" type="range" min="0" max="60000" step="1000" value="0" />
+      <label class="sr-only" for="f-altmax">Altitude maximale</label>
+      <input id="f-altmax" type="range" min="0" max="60000" step="1000" value="60000" />
+    </div>
+
+    <div class="section-title" data-i18n="Compagnie (code ICAO, ex : AFR)">Compagnie (code ICAO, ex : AFR)</div>
+    <input id="f-airline" class="f-input" type="text" maxlength="3" placeholder="AFR" autocomplete="off" aria-label="Compagnie" />
+    <div id="f-chips-airline" class="chips" hidden></div>
+
+    <div class="section-title" data-i18n="Type d'appareil (ex : A320, B77W)">Type d'appareil (ex : A320, B77W)</div>
+    <input id="f-type" class="f-input" type="text" maxlength="4" placeholder="A320" autocomplete="off" aria-label="Type d'appareil" />
+    <div id="f-chips-type" class="chips" hidden></div>
+
+    <div class="section-title" data-i18n="Texte libre (callsign, immat., modèle)">Texte libre (callsign, immat., modèle)</div>
+    <input id="f-text" class="f-input" type="text" placeholder="…" autocomplete="off" aria-label="Texte libre" />
+
+    <div class="section-title" data-i18n="Vue militaire / OSINT">Vue militaire / OSINT</div>
+    <div id="f-osint" class="chips"></div>
+    <label class="check"><input id="f-orbits" type="checkbox" /> <span data-i18n="Dessiner les orbites">Dessiner les orbites</span></label>
+
+    <div class="section-title" data-i18n="Alertes (notification)">Alertes (notification)</div>
+    <label class="check"><input id="a-emergency" type="checkbox" /> <span data-i18n="Urgence dans la zone">Urgence dans la zone</span></label>
+    <label class="check"><input id="a-notable" type="checkbox" /> <span data-i18n="Appareil remarquable dans la zone">Appareil remarquable dans la zone</span></label>
+    <label class="check"><input id="a-military" type="checkbox" /> <span data-i18n="Militaire dans la zone">Militaire dans la zone</span></label>
+
+    <button id="f-reset" class="sched-btn" type="button" data-i18n="Réinitialiser les filtres">Réinitialiser les filtres</button>
+  </aside>
+
+  <!-- Ma zone -->
+  <aside id="mezone-panel" class="filters" hidden role="dialog" aria-label="Ma zone">
+    <button id="mezone-close" class="panel-close" aria-label="Fermer">×</button>
+    <div class="section-title section-title--row"><span data-i18n="Ma zone">Ma zone</span><span id="mz-count" class="p-status"></span></div>
+    <div id="mz-status" class="sched-note"></div>
+    <div class="section-title" data-i18n="Au-dessus de moi">Au-dessus de moi</div>
+    <div id="mz-above" class="legs"></div>
+    <div class="section-title" data-i18n="Prochains passages">Prochains passages</div>
+    <div id="mz-passes" class="legs"></div>
+  </aside>
+
+  <!-- Compte : favoris, règles d'alerte, canaux -->
+  <aside id="account-panel" class="filters" hidden role="dialog" aria-label="Mon compte">
+    <button id="account-close" class="panel-close" aria-label="Fermer">×</button>
+    <div class="section-title" data-i18n="Favoris">Favoris</div>
+    <div id="acc-favorites" class="legs"></div>
+
+    <div class="section-title" data-i18n="Règles d'alerte">Règles d'alerte</div>
+    <div id="acc-rules" class="legs"></div>
+    <div class="acc-form">
+      <select id="acc-rule-type" class="f-input" aria-label="Type de règle">
+        <option value="aircraft" data-i18n="Avion (immat. ou hex) en vol">Avion (immat. ou hex) en vol</option>
+        <option value="flight" data-i18n="Vol (callsign) en vol">Vol (callsign) en vol</option>
+        <option value="type-airport" data-i18n="Type en approche d'un aéroport">Type en approche d'un aéroport</option>
+      </select>
+      <input id="acc-rule-value" class="f-input" type="text" placeholder="F-GKXM · AFR1496 · A388" maxlength="12" aria-label="Valeur" />
+      <input id="acc-rule-airport" class="f-input" type="text" placeholder="LFPG" maxlength="4" aria-label="Aéroport (ICAO)" hidden />
+      <label class="check"><input id="acc-rule-telegram" type="checkbox" /> Telegram</label>
+      <label class="check"><input id="acc-rule-email" type="checkbox" /> E-mail</label>
+      <button id="acc-rule-add" class="sched-btn" type="button" data-i18n="Ajouter">Ajouter</button>
+    </div>
+
+    <div class="section-title" data-i18n="Canaux">Canaux</div>
+    <div id="acc-nochannel" class="sched-note" hidden>Ni Telegram ni e-mail configurés sur ce serveur : les alertes s'affichent ici (boîte de réception).</div>
+    <div id="acc-telegram" hidden>
+      <div class="sched-note">Telegram : <span id="acc-tg-status"></span> <a id="acc-tg-link" href="#" target="_blank" rel="noopener">Connecter le bot ↗</a></div>
+    </div>
+    <div id="acc-email-wrap" hidden>
+      <div class="acc-row"><input id="acc-email" class="f-input" type="email" placeholder="toi@exemple.fr" aria-label="E-mail" /><button id="acc-email-save" class="p-action" type="button">OK</button></div>
+    </div>
+    <button id="acc-test" class="p-action" type="button" data-i18n="Tester">Tester</button>
+
+    <div class="section-title" data-i18n="Boîte de réception">Boîte de réception</div>
+    <div id="acc-inbox" class="legs"></div>
+
+    <div class="section-title" data-i18n="Jeton de compte (garde-le : sans lui, pas de récupération)">Jeton de compte (garde-le : sans lui, pas de récupération)</div>
+    <div class="acc-row"><input id="acc-token" class="f-input mono" type="text" aria-label="Jeton" /><button id="acc-token-copy" class="p-action" type="button" title="Copier">⧉</button><button id="acc-token-use" class="p-action" type="button" title="Utiliser ce jeton">↵</button></div>
+  </aside>
+
+  <!-- Aéroport -->
+  <aside id="airport-panel" class="panel" hidden role="dialog" aria-label="Aéroport">
+    <button id="airport-close" class="panel-close" aria-label="Fermer">×</button>
+    <div class="panel-head">
+      <div>
+        <div id="ap-title" class="p-callsign">—</div>
+        <div id="ap-sub" class="p-airline"></div>
+      </div>
+    </div>
+    <div class="ap-clock"><b id="ap-local-time">—</b> <span id="ap-local-date"></span> <span class="ap-clock-sep">·</span> <span id="ap-elev"></span></div>
+    <div class="p-actions"><button id="ap-center" class="p-action" type="button">⌖ Centrer</button><span id="ap-counts" class="sched-note"></span></div>
+
+    <!-- Galerie : photos de l'article Wikipédia + Wikimedia Commons, navigables -->
+    <div id="ap-photo-wrap" class="p-photo-wrap" hidden>
+      <a id="ap-photo-link" class="p-photo-frame" href="#" target="_blank" rel="noopener" title="Voir en grand">
+        <img id="ap-photo" class="p-photo" alt="Photo de l'aéroport" decoding="async" />
+        <button id="ap-photo-prev" class="p-photo-nav p-photo-nav--prev" type="button" aria-label="Photo précédente" hidden>‹</button>
+        <button id="ap-photo-next" class="p-photo-nav p-photo-nav--next" type="button" aria-label="Photo suivante" hidden>›</button>
+        <span id="ap-photo-count" class="p-photo-count" hidden></span>
+      </a>
+      <div id="ap-thumbs" class="thumbs" hidden></div>
+      <div class="p-photo-credit" id="ap-photo-credit"></div>
+    </div>
+    <p id="ap-extract" class="ap-extract" hidden></p>
+
+    <div id="ap-wx" class="wx" hidden>
+      <div class="wx-head">METAR · <span id="ap-wx-cond"></span></div>
+      <div class="wx-row" id="ap-wx-row"></div>
+      <div id="ap-wx-raw" class="wx-raw mono"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title" data-i18n="Piste en service">Piste en service</div>
+      <div id="ap-runway" class="ap-runway">—</div>
+      <div id="ap-runways-list" class="sched-note"></div>
+    </div>
+
+    <div class="section" id="ap-stats-section">
+      <div class="section-title section-title--row"><span data-i18n="Statistiques">Statistiques</span> <span class="p-status" data-i18n="7 derniers jours">7 derniers jours</span></div>
+      <div class="kpis kpis--3">
+        <div class="kpi"><b id="ap-k-total">—</b><span data-i18n="mouvements">mouvements</span></div>
+        <div class="kpi"><b id="ap-k-takeoffs">—</b><span data-i18n="décollages">décollages</span></div>
+        <div class="kpi"><b id="ap-k-landings">—</b><span data-i18n="atterrissages">atterrissages</span></div>
+      </div>
+      <div class="ap-sub" data-i18n="Mouvements par jour">Mouvements par jour</div>
+      <canvas id="ap-c-days" class="ap-chart" height="70"></canvas>
+      <div class="ap-sub" data-i18n="Mouvements par heure (heure locale)">Mouvements par heure (heure locale)</div>
+      <canvas id="ap-c-hours" class="ap-chart" height="60"></canvas>
+      <div class="ap-sub" data-i18n="Usage des pistes">Usage des pistes</div>
+      <div id="ap-runway-use" class="bars"></div>
+      <div class="ap-sub"><span data-i18n="Routes les plus fréquentes">Routes les plus fréquentes</span> · <span id="ap-served"></span></div>
+      <div id="ap-routes" class="bars"></div>
+      <div id="ap-stats-note" class="sched-note"></div>
+    </div>
+
+    <div class="section" id="ap-events-section" hidden>
+      <div class="section-title" data-i18n="Derniers événements">Derniers événements</div>
+      <div id="ap-events" class="legs"></div>
+    </div>
+
+    <div class="section"><div class="section-title" data-i18n="Arrivées">Arrivées</div><div id="ap-arr" class="legs"></div></div>
+    <div class="section"><div class="section-title" data-i18n="Départs">Départs</div><div id="ap-dep" class="legs"></div></div>
+    <div class="section"><div class="section-title" data-i18n="Au sol">Au sol</div><div id="ap-ground" class="legs"></div></div>
+
+    <div class="section">
+      <div class="section-title" data-i18n="Fiche de l'aéroport">Fiche de l'aéroport</div>
+      <dl class="deflist" id="ap-facts"></dl>
+      <div class="ap-sub" data-i18n="Vue satellite">Vue satellite</div>
+      <div id="ap-sat" class="ap-sat"></div>
+      <div class="sched-note">Imagerie © Esri, Maxar, Earthstar Geographics &amp; the GIS User Community</div>
+    </div>
+
+    <div class="sources">Départs / arrivées déduits des avions en vol et des trajets adsb.lol · mouvements et pistes observés par ce serveur · METAR NOAA · pistes et fiche OurAirports · photos et description Wikipédia / Wikimedia Commons (auteur et licence sous chaque photo).</div>
+  </aside>
+
+  <!-- Panneau de détails : rempli UNIQUEMENT au clic sur un avion -->
+  <aside id="panel" class="panel" hidden role="dialog" aria-label="Détails du vol" tabindex="-1">
+    <button id="panel-close" class="panel-close" aria-label="Fermer" data-i18n-title="Fermer">×</button>
+
+    <div class="panel-head">
+      <div>
+        <div id="p-callsign" class="p-callsign">—</div>
+        <div id="p-airline" class="p-airline"></div>
+      </div>
+      <div id="p-badges" class="p-badges"></div>
+    </div>
+
+    <div class="p-actions">
+      <button id="p-follow" class="p-action" type="button">◎ Suivre</button>
+      <button id="p-share" class="p-action" type="button" title="Copier le lien vers cet avion">⇪ Partager</button>
+      <button id="p-fav" class="p-action" type="button" title="Ajouter aux favoris">☆ Favori</button>
+    </div>
+
+    <div id="p-photo-wrap" class="p-photo-wrap" hidden>
+      <a id="p-photo-open" class="p-photo-frame" href="#" target="_blank" rel="noopener" title="Voir en grand">
+        <img id="p-photo" class="p-photo" alt="Photo de l'appareil" decoding="async" />
+        <button id="p-photo-prev" class="p-photo-nav p-photo-nav--prev" type="button" aria-label="Photo précédente" hidden>‹</button>
+        <button id="p-photo-next" class="p-photo-nav p-photo-nav--next" type="button" aria-label="Photo suivante" hidden>›</button>
+        <span id="p-photo-count" class="p-photo-count" hidden></span>
+      </a>
+      <div class="p-photo-credit"><span id="p-photo-credit">Photo via adsbdb / Planespotters</span> <a id="p-photo-link" href="#" target="_blank" rel="noopener" hidden>↗</a></div>
+    </div>
+
+    <div id="p-route" class="route" hidden>
+      <div class="route-side">
+        <div id="p-from-code" class="route-code">—</div>
+        <div id="p-from-city" class="route-city"></div>
+      </div>
+      <div class="route-arrow">
+        <div class="route-line"></div>
+        <span>✈</span>
+      </div>
+      <div class="route-side route-side--right">
+        <div id="p-to-code" class="route-code">—</div>
+        <div id="p-to-city" class="route-city"></div>
+      </div>
+    </div>
+    <div id="p-route-unknown" class="route-unknown" hidden data-i18n="Trajet inconnu — vol privé, militaire ou callsign non commercial.">
+      Trajet inconnu — vol privé, militaire ou callsign non commercial.
+    </div>
+
+    <!-- Progression du vol : calculée ici, à partir de la position (gratuit) -->
+    <div id="p-progress" class="progress" hidden>
+      <div class="progress-bar"><div id="p-progress-fill" class="progress-fill"></div></div>
+      <div class="progress-row">
+        <span id="p-progress-done">—</span>
+        <span id="p-progress-pct" class="progress-pct">—</span>
+        <span id="p-progress-left">—</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="cell"><span class="label" data-i18n="Altitude">Altitude</span><b id="p-alt">—</b></div>
+      <div class="cell"><span class="label" data-i18n="Vitesse sol">Vitesse sol</span><b id="p-speed">—</b></div>
+      <div class="cell"><span class="label" data-i18n="Cap">Cap</span><b id="p-track">—</b></div>
+      <div class="cell"><span class="label" data-i18n="Vario">Vario</span><b id="p-vs">—</b></div>
+    </div>
+
+    <!-- Horaires, portes, retards : API à clé, appelée à la demande -->
+    <div class="section" id="p-sched-section">
+      <div class="section-title section-title--row">
+        <span data-i18n="Horaires & portes">Horaires &amp; portes</span>
+        <span id="p-sched-status" class="p-status" hidden></span>
+      </div>
+      <div id="p-sched" class="sched" hidden>
+        <div class="sched-col">
+          <div class="sched-head"><span data-i18n="Départ">Départ</span> · <span id="s-dep-code" class="mono"></span></div>
+          <div class="sched-time"><span class="label" data-i18n="Prévu">Prévu</span><b id="s-dep-sched">—</b></div>
+          <div class="sched-time"><span class="label" id="s-dep-real-label">Estimé</span><b id="s-dep-real">—</b></div>
+          <div class="sched-meta" id="s-dep-meta"></div>
+        </div>
+        <div class="sched-col">
+          <div class="sched-head"><span data-i18n="Arrivée">Arrivée</span> · <span id="s-arr-code" class="mono"></span></div>
+          <div class="sched-time"><span class="label" data-i18n="Prévu">Prévu</span><b id="s-arr-sched">—</b></div>
+          <div class="sched-time"><span class="label" id="s-arr-real-label">Estimé</span><b id="s-arr-real">—</b></div>
+          <div class="sched-meta" id="s-arr-meta"></div>
+        </div>
+      </div>
+      <div id="p-sched-note" class="sched-note" hidden data-i18n="Heures locales de chaque aéroport.">Heures locales de chaque aéroport.</div>
+      <button id="p-sched-btn" class="sched-btn" type="button" hidden data-i18n="Charger les horaires et portes">Charger les horaires et portes</button>
+      <div id="p-sched-msg" class="route-unknown" hidden></div>
+
+      <!-- Estimations locales : distance ÷ vitesse, décollage observé, historique (0 appel) -->
+      <dl id="p-est" class="deflist est" hidden>
+        <dt data-i18n="Décollage">Décollage</dt><dd id="e-takeoff">—</dd>
+        <dt data-i18n="En vol depuis">En vol depuis</dt><dd id="e-elapsed">—</dd>
+        <dt data-i18n="Distance restante">Distance restante</dt><dd id="e-left">—</dd>
+        <dt data-i18n="Arrivée estimée">Arrivée estimée</dt><dd id="e-eta">—</dd>
+        <dt data-i18n="Durée habituelle" hidden>Durée habituelle</dt><dd id="e-usual" hidden>—</dd>
+        <dt data-i18n="Arrivée probable" hidden>Arrivée probable</dt><dd id="e-likely" hidden>—</dd>
+      </dl>
+      <div id="p-est-note" class="sched-note" hidden></div>
+    </div>
+
+    <!-- Trajet réel : trace adsb.lol (gratuit, sans clé) découpée en vols -->
+    <div class="section" id="p-trail-section" hidden>
+      <div class="section-title section-title--row">
+        <span data-i18n="Trajet réel">Trajet réel</span>
+        <span id="t-source" class="p-status"></span>
+      </div>
+      <dl class="deflist">
+        <dt data-i18n="Décollage réel">Décollage réel</dt><dd id="t-takeoff">—</dd>
+        <dt data-i18n="Depuis">Depuis</dt><dd id="t-from">—</dd>
+        <dt data-i18n="Phase">Phase</dt><dd id="t-phase">—</dd>
+        <dt data-i18n="Durée de vol">Durée de vol</dt><dd id="t-duration">—</dd>
+        <dt data-i18n="Distance parcourue">Distance parcourue</dt><dd id="t-distance">—</dd>
+        <dt data-i18n="Altitude max">Altitude max</dt><dd id="t-maxalt">—</dd>
+        <dt data-i18n="Vitesse sol max">Vitesse sol max</dt><dd id="t-maxgs">—</dd>
+      </dl>
+      <div id="t-events" class="p-events" hidden></div>
+      <div class="replay-row">
+        <button id="t-replay" class="p-action" type="button" title="Rejouer le vol affiché (×120)">▶ Rejouer</button>
+        <span id="t-replay-time" class="replay-time mono" hidden></span>
+        <span id="t-export" class="export" hidden><span data-i18n="Exporter">Exporter</span> : <a data-fmt="gpx" href="#" download>GPX</a> · <a data-fmt="kml" href="#" download title="Google Earth">KML</a> · <a data-fmt="csv" href="#" download>CSV</a></span>
+      </div>
+      <div id="t-legs-title" class="legs-title" hidden data-i18n="Vols de cet appareil aujourd'hui · clique pour voir la trace">Vols de cet appareil aujourd'hui · clique pour voir la trace</div>
+      <div id="t-legs" class="legs"></div>
+    </div>
+
+    <!-- Historique archivé par ce serveur (au-delà des 24 h publiques) -->
+    <div class="section" id="p-history" hidden>
+      <div class="section-title" data-i18n="Historique (30 jours, archivé par ce serveur)">Historique (30 jours, archivé par ce serveur)</div>
+      <div id="h-legs" class="legs"></div>
+    </div>
+
+    <!-- Données ADS-B avancées (tout ce que l'avion diffuse, gratuit) -->
+    <div class="section" id="p-adsb-section">
+      <div class="section-title" data-i18n="Données ADS-B">Données ADS-B</div>
+      <dl class="deflist" id="p-adsb"></dl>
+    </div>
+
+    <!-- Météo à l'aéroport d'arrivée (NOAA, gratuit et sans clé) -->
+    <div id="p-wx" class="wx" hidden>
+      <div class="wx-head"><span data-i18n="Météo à l'arrivée">Météo à l'arrivée</span> · <span id="wx-icao" class="mono"></span></div>
+      <div class="wx-row">
+        <span id="wx-temp">—</span>
+        <span id="wx-wind">—</span>
+        <span id="wx-vis">—</span>
+      </div>
+      <div id="wx-raw" class="wx-raw mono"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title" data-i18n="Appareil">Appareil</div>
+      <dl class="deflist">
+        <dt data-i18n="Modèle">Modèle</dt><dd id="p-type">—</dd>
+        <dt data-i18n="Immatriculation">Immatriculation</dt><dd id="p-reg">—</dd>
+        <dt data-i18n="Exploitant">Exploitant</dt><dd id="p-owner">—</dd>
+        <dt data-i18n="Code ICAO (hex)">Code ICAO (hex)</dt><dd id="p-hex" class="mono">—</dd>
+        <dt>Squawk</dt><dd id="p-squawk" class="mono">—</dd>
+      </dl>
+      <div class="sched-note"><a id="p-page-aircraft" href="#" class="link">Fiche de l'appareil ↗</a> · <a id="p-page-flight" href="#" class="link" hidden>Fiche du vol ↗</a></div>
+    </div>
+
+    <div id="p-sources" class="sources"></div>
+  </aside>
+
+  <div class="legend" aria-hidden="true">
+    <span class="legend-title" data-i18n="Altitude">Altitude</span>
+    <div class="legend-bar"></div>
+    <div class="legend-scale"><span>sol</span><span>20k ft</span><span>40k+ ft</span></div>
+    <div class="legend-extra"><span class="dot dot--notable"></span> appareil remarquable</div>
+  </div>
+
+  <!-- Visite guidée -->
+  <div id="tour" class="tour" hidden role="dialog" aria-label="Visite guidée">
+    <div class="tour-step" id="tour-step"></div>
+    <div class="tour-title" id="tour-title"></div>
+    <div class="tour-text" id="tour-text"></div>
+    <div class="tour-actions"><button id="tour-skip" class="p-action" type="button" data-i18n="Passer">Passer</button><button id="tour-next" class="sched-btn" type="button" data-i18n="Suivant">Suivant</button></div>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <footer class="credits">
+    Positions &amp; traces : <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL) ·
+    Avions &amp; trajets : <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a> ·
+    Photos : <a href="https://www.planespotters.net" target="_blank" rel="noopener">Planespotters.net</a>, <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a> ·
+    Aéroports &amp; pistes : OurAirports ·
+    Fond de carte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors ·
+    <a href="replay.html">Rejouer une journée</a> · <button id="tour-btn" class="link-btn" type="button">Visite guidée</button>
+  </footer>
+
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="app.js?v=9"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "flightmap",
+  "version": "4.0.0",
+  "description": "Live flight tracker (style FlightRadar24) - 100% APIs gratuites",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test \"tests/**/*.test.js\"",
+    "setup-data": "node scripts/setup-data.js",
+    "setup-data:full": "node scripts/setup-data.js --opensky",
+    "icons": "node scripts/make-icons.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "leaflet": "^1.9.4"
+  }
+}

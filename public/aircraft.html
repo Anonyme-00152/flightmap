@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0f14" />
+  <title>FlightMap — fiche appareil</title>
+  <link rel="icon" href="/icons/icon-192.png" type="image/png" />
+  <link rel="stylesheet" href="/style.css?v=8" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" style="text-decoration:none;color:inherit"><span class="brand-icon">✈</span><span class="brand-name">FlightMap</span></a>
+    <span style="color:var(--muted)">Fiche appareil</span>
+    <div class="tools" style="margin-left:auto"><a class="tool tool--link" href="/">← Carte</a></div>
+  </header>
+  <main class="page"><div class="page-inner">
+    <h1 id="title">…</h1>
+    <div class="sub" id="sub"></div>
+    <div id="photo" class="p-photo-wrap" hidden style="max-width:420px"><img id="photo-img" class="p-photo" alt="" /><div class="p-photo-credit" id="photo-credit"></div></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="stats-grid">
+      <div class="card"><h2>Aéroports fréquentés (30 j)</h2><div class="bars" id="airports"></div></div>
+      <div class="card"><h2>Numéros de vol (30 j)</h2><div class="bars" id="callsigns"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h2>Vols archivés</h2><div class="table-wrap"><table class="table"><thead><tr><th>Date</th><th>Décollage</th><th>Atterrissage</th><th>De</th><th>Vers</th><th>Vol</th><th>Durée</th><th>Distance</th><th>Alt. max</th><th>Événements</th><th></th></tr></thead><tbody id="legs"></tbody></table></div></div>
+    <p class="stats-note" style="margin-top:12px">Données archivées par ce serveur à partir des traces adsb.lol (ODbL) — seulement les avions consultés.</p>
+  </div></main>
+  <script type="module">
+    import { loadPrefs, state, fmtClock, fmtDuration, fmtKm } from '/js/state.js';
+    loadPrefs(); document.documentElement.dataset.theme = state.theme;
+    const q = decodeURIComponent(location.pathname.split('/').pop() || '');
+    const bars = (id, rows, label, count) => {
+      const box = document.getElementById(id); box.textContent = '';
+      const max = Math.max(1, ...rows.map(count));
+      for (const r of rows) { const el = document.createElement('div'); el.className = 'bar'; el.innerHTML = `<span class="k">${label(r)}</span><span class="b"><i style="width:${(count(r) / max) * 100}%"></i></span><span class="v">${count(r)}</span>`; box.appendChild(el); }
+      if (!rows.length) box.textContent = 'Rien encore.';
+    };
+    (async () => {
+      const res = await fetch(`/api/registry/aircraft/${encodeURIComponent(q)}`);
+      if (!res.ok) { document.getElementById('title').textContent = q; document.getElementById('sub').textContent = (await res.json()).error || 'Inconnu'; return; }
+      const d = await res.json();
+      const info = d.info || {};
+      document.title = `FlightMap — ${info.registration || d.hex.toUpperCase()}`;
+      document.getElementById('title').textContent = `${info.registration || d.hex.toUpperCase()}${info.type ? ` · ${[info.manufacturer, info.type].filter(Boolean).join(' ')}` : ''}`;
+      document.getElementById('sub').textContent = `${info.owner || ''}${info.owner && info.ownerCountry ? ' · ' : ''}${info.ownerCountry || ''} · hex ${d.hex.toUpperCase()}${d.lastSeen ? ` · vu le ${new Date(d.lastSeen).toLocaleString('fr-FR')}` : ''}`;
+      const ph = info.photos?.[0] || (info.photo ? { src: info.photoThumb || info.photo, credit: info.photoCredit } : null);
+      if (ph) { document.getElementById('photo').hidden = false; const img = document.getElementById('photo-img'); img.src = ph.src; img.style.aspectRatio = '3 / 2'; img.style.objectFit = 'cover'; document.getElementById('photo-credit').textContent = ph.credit || info.photoCredit || ''; }
+      document.getElementById('kpis').innerHTML = [
+        [d.totals.flights, 'vols (30 j)'], [d.totals.hours, 'heures de vol'], [d.totals.km.toLocaleString('fr-FR'), 'km parcourus'], [d.airports.length, 'aéroports'],
+      ].map(([v, l]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('');
+      bars('airports', d.airports, (a) => `${a.iata} <small>${a.city || a.name || ''}</small>`, (a) => a.count);
+      bars('callsigns', d.callsigns, (c) => `<a class="link" href="/flight/${c.callsign}">${c.callsign}</a> <small>${c.airline || ''}</small>`, (c) => c.count);
+      const tb = document.getElementById('legs');
+      for (const l of d.legs) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${new Date(l.start).toLocaleDateString('fr-FR')}</td><td>${l.takeoffAt ? fmtClock(new Date(l.takeoffAt)) : '—'}</td><td>${l.landedAt ? fmtClock(new Date(l.landedAt)) : '—'}</td><td>${l.from?.iata || '?'}</td><td>${l.to?.iata || '?'}</td><td>${l.callsign ? `<a class="link" href="/flight/${l.callsign}">${l.callsign}</a>` : '—'}</td><td>${fmtDuration((l.durationMin || 0) * 60_000)}</td><td>${fmtKm(l.distanceKm || 0)}</td><td>${(l.maxAlt || 0).toLocaleString('fr-FR')} ft</td><td>${(l.events || []).map((e) => e.label).join(', ')}</td><td><a class="link" href="/api/trail/${d.hex}/export.kml?archived=${encodeURIComponent(l.start)}">KML</a></td>`;
+        tb.appendChild(tr);
+      }
+    })();
+  </script>
+</body>
+</html>

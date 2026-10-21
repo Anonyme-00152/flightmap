@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0f14" />
+  <title>FlightMap — statistiques</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" type="image/png" />
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="style.css?v=7" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" style="text-decoration:none;color:inherit">
+      <span class="brand-icon">✈</span>
+      <span class="brand-name">FlightMap</span>
+    </a>
+    <span style="color:var(--muted)">Statistiques</span>
+    <div class="tools" style="margin-left:auto">
+      <a class="tool tool--link" href="./">← Carte</a>
+      <button id="theme-btn" class="tool" type="button" title="Mode clair">☀</button>
+    </div>
+  </header>
+
+  <main class="stats-page">
+    <p class="stats-note" id="note">Chargement…</p>
+    <div class="stats-grid">
+      <div class="card"><h2>Aujourd'hui</h2><div class="big" id="k-unique">—</div><div class="sub">avions uniques vus · pic <b id="k-peak">—</b> à l'écran · <b id="k-samples">—</b> relevés</div></div>
+      <div class="card"><h2>Militaires · remarquables · urgences</h2><div class="big"><span id="k-mil">—</span> · <span id="k-notable">—</span> · <span id="k-emerg">—</span></div><div class="sub">appareils uniques aujourd'hui</div></div>
+      <div class="card"><h2>Avions uniques par heure (UTC)</h2><canvas id="c-hours"></canvas></div>
+      <div class="card"><h2>Répartition en altitude</h2><canvas id="c-alt"></canvas></div>
+      <div class="card"><h2>Compagnies les plus vues</h2><div class="bars" id="b-airlines"></div></div>
+      <div class="card"><h2>Types d'appareils les plus vus</h2><div class="bars" id="b-types"></div></div>
+      <div class="card"><h2>Jours précédents (avions uniques)</h2><canvas id="c-days"></canvas></div>
+      <div class="card"><h2>Urgences du jour (squawk 7500 / 7600 / 7700)</h2><ul class="emerg" id="l-emerg" style="margin:0;padding-left:16px"></ul></div>
+      <div class="card" style="grid-column:1 / -1"><h2>Carte de chaleur (grille 0,5°)</h2><div id="heat"></div></div>
+    </div>
+  </main>
+
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script type="module">
+    import { loadPrefs, state } from './js/state.js';
+    loadPrefs();
+    document.documentElement.dataset.theme = state.theme;
+    const themeBtn = document.getElementById('theme-btn');
+    const syncBtn = () => { themeBtn.textContent = state.theme === 'dark' ? '☀' : '☾'; };
+    themeBtn.addEventListener('click', () => {
+      state.theme = state.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = state.theme;
+      localStorage.setItem('flightmap:prefs', JSON.stringify({ ...JSON.parse(localStorage.getItem('flightmap:prefs') || '{}'), theme: state.theme }));
+      syncBtn(); draw();
+    });
+    syncBtn();
+
+    const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    let data = null;
+
+    function barChart(canvas, values, labels, { color } = {}) {
+      const dpr = devicePixelRatio || 1;
+      const w = canvas.clientWidth, h = canvas.clientHeight || 180;
+      canvas.width = w * dpr; canvas.height = h * dpr;
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      const max = Math.max(1, ...values);
+      const pad = 38, gap = 2;
+      const bw = (w - pad) / values.length - gap;
+      ctx.font = '10px ui-monospace, Menlo, monospace';
+      ctx.fillStyle = css('--muted');
+      ctx.textAlign = 'right';
+      ctx.fillText(String(max), pad - 4, 10);
+      ctx.fillText('0', pad - 4, h - 14);
+      values.forEach((v, i) => {
+        const x = pad + i * (bw + gap);
+        const bh = ((h - 26) * v) / max;
+        ctx.fillStyle = color || css('--accent');
+        ctx.fillRect(x, h - 16 - bh, bw, bh);
+        if (labels && (values.length <= 12 || i % Math.ceil(values.length / 12) === 0)) {
+          ctx.fillStyle = css('--muted');
+          ctx.textAlign = 'center';
+          ctx.fillText(labels[i], x + bw / 2, h - 3);
+        }
+      });
+    }
+
+    function bars(id, rows, label) {
+      const box = document.getElementById(id);
+      box.textContent = '';
+      const max = Math.max(1, ...rows.map((r) => r.count));
+      for (const r of rows.slice(0, 12)) {
+        const el = document.createElement('div');
+        el.className = 'bar';
+        el.innerHTML = `<span class="k">${r.code}${r.name ? ` <small>${r.name}</small>` : ''}</span><span class="b"><i style="width:${(r.count / max) * 100}%"></i></span><span class="v">${r.count}</span>`;
+        box.appendChild(el);
+      }
+      if (!rows.length) box.textContent = 'Rien encore — laisse la carte ouverte quelques minutes.';
+    }
+
+    let heat = null, heatLayer = null;
+    function drawHeat(grid) {
+      if (!heat) {
+        heat = L.map('heat', { zoomControl: false, attributionControl: false }).setView([48.8, 2.3], 5);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 12, className: 'tiles' }).addTo(heat);
+      }
+      heat.getContainer().querySelector('.leaflet-tile-pane')?.classList.toggle('tile-dark', state.theme === 'dark');
+      if (heatLayer) heat.removeLayer(heatLayer);
+      const max = Math.max(1, ...grid.map(([, n]) => n));
+      heatLayer = L.layerGroup(grid.map(([cell, n]) => {
+        const [lat, lon] = cell.split(',').map(Number);
+        const t = Math.log1p(n) / Math.log1p(max);
+        return L.rectangle([[lat, lon], [lat + 0.5, lon + 0.5]], { stroke: false, fillColor: css('--accent'), fillOpacity: 0.1 + t * 0.6 });
+      })).addTo(heat);
+      if (grid.length) {
+        const b = L.latLngBounds(grid.slice(0, 200).map(([c]) => c.split(',').map(Number)));
+        heat.fitBounds(b.pad(0.2), { maxZoom: 7 });
+      }
+    }
+
+    function draw() {
+      if (!data) return;
+      const t = data.today;
+      document.getElementById('note').textContent = `${data.note} Journée ${t.day} (UTC).`;
+      document.getElementById('k-unique').textContent = t.unique.toLocaleString('fr-FR');
+      document.getElementById('k-peak').textContent = t.peak;
+      document.getElementById('k-samples').textContent = t.samples.toLocaleString('fr-FR');
+      document.getElementById('k-mil').textContent = t.military;
+      document.getElementById('k-notable').textContent = t.notable;
+      document.getElementById('k-emerg').textContent = t.emergencies.length;
+      barChart(document.getElementById('c-hours'), t.hours, t.hours.map((_, i) => `${i}h`));
+      const altLabels = t.altBuckets.slice(0, -1).map((a, i) => `${a / 1000}–${t.altBuckets[i + 1] / 1000}k`);
+      barChart(document.getElementById('c-alt'), t.alt, altLabels, { color: '#35c18a' });
+      bars('b-airlines', t.airlines);
+      bars('b-types', t.types);
+      const days = [...data.previous].reverse();
+      barChart(document.getElementById('c-days'), days.map((d) => d.unique), days.map((d) => d.day.slice(5)), { color: '#e8c33d' });
+      const ul = document.getElementById('l-emerg');
+      ul.textContent = '';
+      for (const e of t.emergencies) {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = `./?hex=${e.hex}`;
+        a.textContent = `${e.callsign || e.hex.toUpperCase()} — ${e.squawk || e.emergency} · ${new Date(e.first).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+        a.style.color = 'var(--accent)';
+        li.appendChild(a);
+        ul.appendChild(li);
+      }
+      if (!t.emergencies.length) ul.innerHTML = '<li style="border:0;color:var(--muted)">Aucune urgence observée aujourd\'hui.</li>';
+      drawHeat(t.grid);
+    }
+
+    async function load() {
+      const res = await fetch('/api/stats?days=14');
+      data = await res.json();
+      draw();
+    }
+    load();
+    setInterval(load, 60_000);
+    addEventListener('resize', draw);
+  </script>
+</body>
+</html>
