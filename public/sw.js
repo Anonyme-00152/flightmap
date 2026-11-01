@@ -5,12 +5,13 @@
  *
  * Change VERSION à chaque déploiement pour invalider l'ancien cache.
  */
-const VERSION = 'flightmap-v9';
+const VERSION = 'flightmap-v10';
 const SHELL = [
   './', 'index.html', 'stats.html', 'replay.html', 'embed.html', 'style.css', 'app.js',
   'js/state.js', 'js/map.js', 'js/render.js', 'js/data.js', 'js/panel.js', 'js/filters.js', 'js/url.js', 'js/pwa.js',
   'js/i18n.js', 'js/airports.js', 'js/mezone.js', 'js/account.js', 'js/military.js', 'js/a11y.js', 'js/tour.js',
   'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
+  'fonts/inter-latin-wght-normal.woff2', 'fonts/jetbrains-mono-latin-wght-normal.woff2',
   '/vendor/leaflet/leaflet.js', '/vendor/leaflet/leaflet.css',
 ];
 

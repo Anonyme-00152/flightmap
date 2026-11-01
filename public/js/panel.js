@@ -102,7 +102,7 @@ followBtn.addEventListener('click', () => {
 function updateFollowButton() {
   const on = state.followHex && state.followHex === state.selectedHex;
   followBtn.classList.toggle('is-on', Boolean(on));
-  followBtn.textContent = on ? `◉ ${t('Suivi')}` : `◎ ${t('Suivre')}`;
+  followBtn.textContent = on ? t('Suivi') : t('Suivre');   // pictogramme : CSS (#p-follow / .is-on)
   followBtn.title = on ? 'Arrêter de suivre' : 'Recentrer en continu, même hors de la zone visible';
 }
 on('follow', updateFollowButton);
@@ -704,7 +704,8 @@ function startReplay(leg) {
   const marker = L.circleMarker([pts[0][1], pts[0][2]], { radius: 6, color: '#fff', fillColor: '#3fb6ff', fillOpacity: 1, weight: 2 }).addTo(map);
   const label = $('t-replay-time');
   const btn = $('t-replay');
-  btn.textContent = `■ ${t('Arrêter')}`;
+  btn.textContent = t('Arrêter');
+  btn.classList.add('is-on');
   label.hidden = false;
   drawTrail(leg, false, { fit: true });
   const speed = 120;
@@ -731,7 +732,8 @@ function stopReplay() {
   cancelAnimationFrame(replay.raf);
   map.removeLayer(replay.marker);
   replay = null;
-  $('t-replay').textContent = `▶ ${t('Rejouer')}`;
+  $('t-replay').textContent = t('Rejouer');
+  $('t-replay').classList.remove('is-on');
   $('t-replay-time').hidden = true;
 }
 

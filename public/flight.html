@@ -3,29 +3,40 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#0b0f14" />
+  <meta name="theme-color" content="#060910" />
   <title>FlightMap — fiche vol</title>
   <link rel="icon" href="/icons/icon-192.png" type="image/png" />
-  <link rel="stylesheet" href="/style.css?v=8" />
+  <link rel="preload" href="/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/style.css?v=10" />
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/" style="text-decoration:none;color:inherit"><span class="brand-icon">✈</span><span class="brand-name">FlightMap</span></a>
-    <span style="color:var(--muted)">Fiche vol</span>
-    <div class="tools" style="margin-left:auto"><a id="live" class="tool tool--accent" href="/" hidden>Voir en direct</a><a class="tool tool--link" href="/">← Carte</a></div>
+  <header class="topbar topbar--page">
+    <a class="brand" href="/" aria-label="FlightMap — retour à la carte">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><defs><linearGradient id="bm-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ccaff" /><stop offset=".5" stop-color="#3f8dff" /><stop offset="1" stop-color="#7a6bff" /></linearGradient><linearGradient id="bm-s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".35" /><stop offset="1" stop-color="#fff" stop-opacity="0" /></linearGradient></defs><rect width="32" height="32" rx="9.5" fill="url(#bm-g)" /><rect x=".5" y=".5" width="31" height="31" rx="9" fill="none" stroke="url(#bm-s)" /><path d="M9 23.5c4-1.2 9.5-5.6 14-14" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="1.4" stroke-dasharray="1.6 2.4" stroke-linecap="round" /><path transform="translate(16.6 15.4) rotate(45) scale(.92)" fill="#fff" d="M0-10L1.8-3.5L10.5 3V5L1.8 3L1.5 8L4.5 11V12.4L0 10.6L-4.5 12.4V11L-1.5 8L-1.8 3L-10.5 5V3L-1.8-3.5Z" /></svg>
+      </span>
+      <span class="brand-name">Flight<span>Map</span></span>
+    </a>
+    <span class="crumb">Fiche vol</span>
+    <div class="tools"><a id="live" class="tool tool--accent" href="/" data-icon="radar" hidden>Voir en direct</a><a class="tool tool--link" href="/" data-icon="arrow-left">Carte</a></div>
   </header>
   <main class="page"><div class="page-inner">
-    <h1 id="title">…</h1>
-    <div class="sub" id="sub"></div>
+    <div class="page-hero">
+      <div class="page-hero-text">
+        <div class="eyebrow" data-icon="route">Vol</div>
+        <h1 id="title">…</h1>
+        <div class="sub" id="sub"></div>
+      </div>
+    </div>
     <div class="kpis" id="kpis"></div>
     <div class="stats-grid">
       <div class="card"><h2>Trajets observés (30 j)</h2><div class="bars" id="routes"></div></div>
       <div class="card"><h2>Appareils utilisés</h2><div class="bars" id="aircraft"></div></div>
       <div class="card"><h2>Régularité</h2><div id="punct" class="sub"></div></div>
-      <div class="card"><h2>Événements récents</h2><ul id="events" class="emerg" style="margin:0;padding-left:16px"></ul></div>
+      <div class="card"><h2>Événements récents</h2><ul id="events" class="emerg"></ul></div>
     </div>
-    <div class="card" style="margin-top:14px"><h2>Vols archivés</h2><div class="table-wrap"><table class="table"><thead><tr><th>Date</th><th>Décollage</th><th>Atterrissage</th><th>De</th><th>Vers</th><th>Appareil</th><th>Durée</th><th>Distance</th><th>Alt. max</th><th></th></tr></thead><tbody id="legs"></tbody></table></div></div>
-    <p class="stats-note" style="margin-top:12px">Durées et heures réelles observées sur les traces adsb.lol (ODbL), archivées par ce serveur. La ponctualité vs l'horaire publié demande une clé d'API (horaires) : ici on mesure la régularité réelle.</p>
+    <div class="card card--table"><h2>Vols archivés</h2><div class="table-wrap"><table class="table"><thead><tr><th>Date</th><th>Décollage</th><th>Atterrissage</th><th>De</th><th>Vers</th><th>Appareil</th><th>Durée</th><th>Distance</th><th>Alt. max</th><th></th></tr></thead><tbody id="legs"></tbody></table></div></div>
+    <p class="stats-note page-foot">Durées et heures réelles observées sur les traces adsb.lol (ODbL), archivées par ce serveur. La ponctualité vs l'horaire publié demande une clé d'API (horaires) : ici on mesure la régularité réelle.</p>
   </div></main>
   <script type="module">
     import { loadPrefs, state, fmtClock, fmtDuration, fmtKm } from '/js/state.js';

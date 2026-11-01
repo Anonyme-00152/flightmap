@@ -60,12 +60,23 @@ function encodePng(width, height, rgba) {
 }
 
 // ── Dessin ──────────────────────────────────────────────────────────────────
+// fond : dégradé diagonal du logo (ciel → bleu → indigo), avion blanc incliné à 45°
+const GRADIENT = [[0, [0x5c, 0xca, 0xff]], [0.5, [0x3f, 0x8d, 0xff]], [1, [0x7a, 0x6b, 0xff]]];
+function gradientAt(t) {
+  for (let k = 1; k < GRADIENT.length; k++) {
+    const [t0, c0] = GRADIENT[k - 1], [t1, c1] = GRADIENT[k];
+    if (t <= t1) { const f = (t - t0) / (t1 - t0); return c0.map((v, j) => v + (c1[j] - v) * f); }
+  }
+  return GRADIENT[GRADIENT.length - 1][1];
+}
+
 function render(size, { maskable }) {
   const rgba = Buffer.alloc(size * size * 4);
-  const bg = [0x13, 0x1a, 0x22], fg = [0x3f, 0xb6, 0xff];
-  const radius = maskable ? 0 : size * 0.22;          // coins arrondis (sauf maskable : plein cadre)
-  const scale = (maskable ? size * 0.30 : size * 0.36) / 12.4;
-  const cx = size / 2, cy = size / 2 - size * 0.01;
+  const fg = [0xff, 0xff, 0xff];
+  const radius = maskable ? 0 : size * 0.24;          // coins arrondis (sauf maskable : plein cadre)
+  const scale = (maskable ? size * 0.46 : size * 0.62) / 22.4;
+  const cx = size / 2 + size * 0.019, cy = size / 2 - size * 0.019;   // recentrage optique après rotation
+  const cos = Math.SQRT1_2, sin = Math.SQRT1_2;
   const ss = 4;                                        // anti-aliasing 4×4
 
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
@@ -77,11 +88,14 @@ function render(size, { maskable }) {
       const dy = Math.max(radius - py, py - (size - radius), 0);
       if (dx * dx + dy * dy > radius * radius) continue;
       cover++;
-      if (inPolygon((px - cx) / scale, (py - cy) / scale, PLANE)) plane++;
+      // rotation inverse de 45° pour tester le point dans le repère de l'avion
+      const ux = px - cx, uy = py - cy;
+      if (inPolygon((cos * ux + sin * uy) / scale, (-sin * ux + cos * uy) / scale, PLANE)) plane++;
     }
     const i = (y * size + x) * 4;
     const a = cover / (ss * ss);
     const t = plane / Math.max(1, cover);
+    const bg = gradientAt((x + y) / (2 * size));
     rgba[i] = Math.round(bg[0] + (fg[0] - bg[0]) * t);
     rgba[i + 1] = Math.round(bg[1] + (fg[1] - bg[1]) * t);
     rgba[i + 2] = Math.round(bg[2] + (fg[2] - bg[2]) * t);

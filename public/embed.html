@@ -5,20 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FlightMap — widget</title>
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="style.css?v=8" />
+  <link rel="stylesheet" href="style.css?v=10" />
   <style>
     /* widget : carte seule, sans barre ni panneaux */
     :root { --topbar-h: 0px; }
     #map { inset: 0; }
-    .embed-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 800; display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: var(--topbar-bg); border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; }
-    .embed-bar a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    body:has(> #map)::before { display: none; }
+    .embed-bar {
+      position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 800;
+      display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 6px;
+      border-radius: 12px; border: 1px solid var(--line);
+      background: var(--glass-strong); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+      box-shadow: var(--shadow-md), var(--hl);
+      color: var(--faint); font-size: 11px; white-space: nowrap; overflow: hidden;
+    }
+    .embed-bar a { color: var(--accent); text-decoration: none; font-weight: 650; }
+    .embed-bar .open { display: inline-flex; align-items: center; gap: 7px; }
+    .embed-bar .open svg { width: 20px; height: 20px; flex: none; }
+    .embed-bar #title { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
     .embed-bar .cnt { margin-left: auto; color: var(--muted); }
+    .embed-bar .cnt b { color: var(--text); font-variant-numeric: tabular-nums; }
+    #map .leaflet-top.leaflet-left { bottom: 52px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div class="embed-bar">
-    <span>✈ <a id="open" href="/" target="_blank" rel="noopener">Ouvrir dans FlightMap</a></span>
+    <span class="open"><svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="bm-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ccaff" /><stop offset=".5" stop-color="#3f8dff" /><stop offset="1" stop-color="#7a6bff" /></linearGradient></defs><rect width="32" height="32" rx="9.5" fill="url(#bm-g)" /><path transform="translate(16.6 15.4) rotate(45) scale(.92)" fill="#fff" d="M0-10L1.8-3.5L10.5 3V5L1.8 3L1.5 8L4.5 11V12.4L0 10.6L-4.5 12.4V11L-1.5 8L-1.8 3L-10.5 5V3L-1.8-3.5Z" /></svg><a id="open" href="/" target="_blank" rel="noopener">Ouvrir dans FlightMap</a></span>
     <span id="title"></span>
     <span class="cnt"><b id="stat-count">—</b> avions · <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL) · © OSM</span>
   </div>

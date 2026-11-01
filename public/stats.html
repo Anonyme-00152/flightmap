@@ -3,38 +3,43 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#0b0f14" />
+  <meta name="theme-color" content="#060910" />
   <title>FlightMap — statistiques</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" type="image/png" />
+  <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="style.css?v=7" />
+  <link rel="stylesheet" href="style.css?v=10" />
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="./" style="text-decoration:none;color:inherit">
-      <span class="brand-icon">✈</span>
-      <span class="brand-name">FlightMap</span>
+  <header class="topbar topbar--page">
+    <a class="brand" href="./" aria-label="FlightMap — retour à la carte">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><defs><linearGradient id="bm-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ccaff" /><stop offset=".5" stop-color="#3f8dff" /><stop offset="1" stop-color="#7a6bff" /></linearGradient><linearGradient id="bm-s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".35" /><stop offset="1" stop-color="#fff" stop-opacity="0" /></linearGradient></defs><rect width="32" height="32" rx="9.5" fill="url(#bm-g)" /><rect x=".5" y=".5" width="31" height="31" rx="9" fill="none" stroke="url(#bm-s)" /><path d="M9 23.5c4-1.2 9.5-5.6 14-14" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="1.4" stroke-dasharray="1.6 2.4" stroke-linecap="round" /><path transform="translate(16.6 15.4) rotate(45) scale(.92)" fill="#fff" d="M0-10L1.8-3.5L10.5 3V5L1.8 3L1.5 8L4.5 11V12.4L0 10.6L-4.5 12.4V11L-1.5 8L-1.8 3L-10.5 5V3L-1.8-3.5Z" /></svg>
+      </span>
+      <span class="brand-name">Flight<span>Map</span></span>
     </a>
-    <span style="color:var(--muted)">Statistiques</span>
-    <div class="tools" style="margin-left:auto">
-      <a class="tool tool--link" href="./">← Carte</a>
-      <button id="theme-btn" class="tool" type="button" title="Mode clair">☀</button>
+    <span class="crumb">Statistiques</span>
+    <div class="tools">
+      <a class="tool tool--link" href="./" data-icon="arrow-left">Carte</a>
+      <span class="tools-sep" aria-hidden="true"></span>
+      <button id="theme-btn" class="tool" type="button" data-icon="sun" title="Mode clair">☀</button>
     </div>
   </header>
 
   <main class="stats-page">
+    <div class="page-head"><h1>Statistiques du trafic</h1></div>
     <p class="stats-note" id="note">Chargement…</p>
     <div class="stats-grid">
-      <div class="card"><h2>Aujourd'hui</h2><div class="big" id="k-unique">—</div><div class="sub">avions uniques vus · pic <b id="k-peak">—</b> à l'écran · <b id="k-samples">—</b> relevés</div></div>
-      <div class="card"><h2>Militaires · remarquables · urgences</h2><div class="big"><span id="k-mil">—</span> · <span id="k-notable">—</span> · <span id="k-emerg">—</span></div><div class="sub">appareils uniques aujourd'hui</div></div>
+      <div class="card card--hero"><h2>Aujourd'hui</h2><div class="big" id="k-unique">—</div><div class="sub">avions uniques vus · pic <b id="k-peak">—</b> à l'écran · <b id="k-samples">—</b> relevés</div></div>
+      <div class="card card--hero"><h2>Militaires · remarquables · urgences</h2><div class="big"><span id="k-mil">—</span> · <span id="k-notable">—</span> · <span id="k-emerg">—</span></div><div class="sub">appareils uniques aujourd'hui</div></div>
       <div class="card"><h2>Avions uniques par heure (UTC)</h2><canvas id="c-hours"></canvas></div>
       <div class="card"><h2>Répartition en altitude</h2><canvas id="c-alt"></canvas></div>
       <div class="card"><h2>Compagnies les plus vues</h2><div class="bars" id="b-airlines"></div></div>
       <div class="card"><h2>Types d'appareils les plus vus</h2><div class="bars" id="b-types"></div></div>
       <div class="card"><h2>Jours précédents (avions uniques)</h2><canvas id="c-days"></canvas></div>
-      <div class="card"><h2>Urgences du jour (squawk 7500 / 7600 / 7700)</h2><ul class="emerg" id="l-emerg" style="margin:0;padding-left:16px"></ul></div>
-      <div class="card" style="grid-column:1 / -1"><h2>Carte de chaleur (grille 0,5°)</h2><div id="heat"></div></div>
+      <div class="card"><h2>Urgences du jour (squawk 7500 / 7600 / 7700)</h2><ul class="emerg" id="l-emerg"></ul></div>
+      <div class="card card--wide"><h2>Carte de chaleur (grille 0,5°)</h2><div id="heat"></div></div>
     </div>
   </main>
 

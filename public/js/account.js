@@ -176,7 +176,7 @@ export function initAccount() {
   });
   const syncFavButton = () => {
     const on = state.selectedHex && isFavorite(state.selectedHex);
-    favBtn.textContent = on ? `★ ${t('Favori ✓')}` : `☆ ${t('Favori')}`;
+    favBtn.textContent = on ? t('Favori ✓') : t('Favori');   // étoile : CSS (#p-fav / .is-on)
     favBtn.classList.toggle('is-on', Boolean(on));
   };
   on('select', syncFavButton);

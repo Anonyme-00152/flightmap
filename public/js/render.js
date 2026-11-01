@@ -166,7 +166,7 @@ function render() {
       const line2 = zoom >= 10 && !p.onGround && p.alt != null
         ? `${Math.round(p.alt / 100) * 100} ft · ${Math.round(p.speed || 0)} kt`
         : null;
-      ctx.font = `${selected ? '600 ' : ''}11px ui-monospace, Menlo, monospace`;
+      ctx.font = `${selected ? '700' : '500'} 11px "JetBrains Mono", ui-monospace, Menlo, monospace`;
       const w = Math.max(ctx.measureText(line1).width, line2 ? ctx.measureText(line2).width * 0.9 : 0);
       const h = line2 ? 24 : 12;
       const x = pt.x + 13, y = pt.y - 4;
@@ -174,7 +174,7 @@ function render() {
         ctx.fillStyle = selected ? accent : labelColor;
         ctx.fillText(line1, x, y + 8);
         if (line2) {
-          ctx.font = '10px ui-monospace, Menlo, monospace';
+          ctx.font = '10px "JetBrains Mono", ui-monospace, Menlo, monospace';
           ctx.fillStyle = selected ? accent : (light ? 'rgba(20,28,40,.6)' : 'rgba(230,237,243,.5)');
           ctx.fillText(line2, x, y + 20);
         }

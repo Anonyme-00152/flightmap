@@ -23,7 +23,7 @@ export function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   tiles.getContainer()?.classList.toggle('tile-dark', theme === 'dark');
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = theme === 'dark' ? '#0b0f14' : '#f4f6f9';
+  if (meta) meta.content = theme === 'dark' ? '#060910' : '#e7ecf3';
   savePrefs();
   emit('theme', theme);
 }
